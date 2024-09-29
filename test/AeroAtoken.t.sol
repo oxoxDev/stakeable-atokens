@@ -9,10 +9,13 @@ abstract contract AeroATokenTest is Test {
     address public ant = makeAddr("ant");
     address public governance = makeAddr("governance");
 
-    // TODO: Add more tests
+    function setUp() public {
+        // TODO: setup the fork network and the fork block
+        // TODO: upgrade the atoken on base mainnet to the new AeroAToken
+    }
 
-    // add a fork test to check deposit
-    // add a fork test to check withdrawal
-    // add a fork test to check liquidations
-    // add a fork test to check rewards
+    // TODO: add a fork test to check deposit
+    // TODO: add a fork test to check withdrawal
+    // TODO: add a fork test to check liquidations
+    // TODO: add a fork test to check rewards
 }
