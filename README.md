@@ -1,13 +1,13 @@
-# Sample Hardhat Project
+# Staked ATokens
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.
+This repo contains the codebase of various variants of aTokens that can be staked across multiple contracts. Use-cases can be
 
-Try running some of the following tasks:
+1. Allows the protocol to stake the underlying asset to the staking contract and distribute the rewards accordingly
+2. Allows the protocol to stake the underlying asset to a rewarsd contract
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat ignition deploy ./ignition/modules/Lock.ts
-```
+---
+
+## Risks
+
+Allowing the lending protocol to use it's underlying asset to deposit into another protocol significantly increases the counter-party risk of each asset and hence the choice of contracts
+need to be taken with caution.
