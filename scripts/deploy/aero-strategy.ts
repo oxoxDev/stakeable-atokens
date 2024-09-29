@@ -18,42 +18,36 @@ async function main() {
 
   console.log("proxy admin at", proxyAdmin.address);
 
-  const aeroEmissionsStrategy = await hre.deployments.deploy(
-    "AeroEmissionsStrategy",
-    {
-      from: deployer.address,
-      skipIfAlreadyDeployed: true,
-      contract: "AeroEmissionsStrategy",
-      autoMine: true,
-      log: true,
-      proxy: {
-        owner: proxyAdmin.address,
-        proxyContract: "OpenZeppelinTransparentProxy",
-        execute: {
-          init: {
-            methodName: "initialize",
-            args: [
-              deployer.address, // address _owner,
-              aero, // address _aero,
-              aeroOracle, // address _oracle,
-              emissionManager, // address _emissionManager,
-              incentiveController, // address _incentiveController
-            ],
-          },
+  const strategy = await hre.deployments.deploy("AeroEmissionsStrategy", {
+    from: deployer.address,
+    skipIfAlreadyDeployed: true,
+    contract: "AeroEmissionsStrategy",
+    autoMine: true,
+    log: true,
+    proxy: {
+      owner: proxyAdmin.address,
+      proxyContract: "OpenZeppelinTransparentProxy",
+      execute: {
+        init: {
+          methodName: "initialize",
+          args: [
+            deployer.address, // address _owner,
+            aero, // address _aero,
+            aeroOracle, // address _oracle,
+            emissionManager, // address _emissionManager,
+            incentiveController, // address _incentiveController
+          ],
         },
       },
-    }
-  );
+    },
+  });
 
-  console.log(
-    `aeroEmissionsStrategy deployed to`,
-    aeroEmissionsStrategy.address
-  );
+  console.log(`aeroEmissionsStrategy deployed to`, strategy.address);
 
   // verify contract for tesnet & mainnet
   if (hre.network.name !== "hardhat") {
     await hre.run("verify:verify", { address: proxyAdmin.address });
-    await hre.run("verify:verify", { address: aeroEmissionsStrategy.address });
+    await hre.run("verify:verify", { address: strategy.address });
   }
 }
 
