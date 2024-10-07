@@ -6,6 +6,10 @@ import {IERC20} from "@zerolendxyz/core-v3/contracts/dependencies/openzeppelin/c
 import {Initializable} from "@zerolendxyz/core-v3/contracts/dependencies/openzeppelin/upgradeability/Initializable.sol";
 import {IEACAggregatorProxy, IEmissionManager, ITransferStrategyBase, RewardsDataTypes} from "@zerolendxyz/periphery-v3/contracts/rewards/interfaces/IEmissionManager.sol";
 
+interface IATokenAerodrome {
+    function refreshRewards() external;
+}
+
 /// @dev NOTE That ATokenAerodrome should not be made borrowable
 contract AeroEmissionsStrategy is
     Initializable,
@@ -21,6 +25,7 @@ contract AeroEmissionsStrategy is
     mapping(address => bool) public whitelisted;
     mapping(address => address) public aToken;
     address public oracle;
+    address public runner;
 
     modifier onlyIncentivesController() {
         require(
@@ -35,6 +40,7 @@ contract AeroEmissionsStrategy is
         address _aero,
         address _oracle,
         address _emissionManager,
+        address _runner,
         address _incentiveController
     ) public initializer {
         aero = IERC20(_aero);
@@ -42,16 +48,25 @@ contract AeroEmissionsStrategy is
         incentiveController = _incentiveController;
         whitelisted[_owner] = true;
         oracle = _oracle;
+        runner = _runner;
         _transferOwnership(_owner);
     }
 
-    function whitelist(address who, bool what) external onlyOwner {
-        whitelisted[who] = what;
+    function whitelist(
+        address _reserve,
+        address _aToken,
+        bool _what
+    ) external onlyOwner {
+        whitelisted[_reserve] = _what;
+        aToken[_reserve] = _aToken;
     }
 
-    function notifyEmissionManager(address reserve) external {
-        require(whitelisted[msg.sender], "not whitelisted");
-        address aTokenAddress = aToken[reserve];
+    function notifyEmissionManager(address _reserve) external {
+        require(msg.sender == runner, "not runner");
+        require(whitelisted[_reserve], "not whitelisted");
+        address aTokenAddress = aToken[_reserve];
+
+        IATokenAerodrome(aTokenAddress).refreshRewards();
 
         // claim the aero tokens
         uint256 pending = aero.balanceOf(aTokenAddress);
@@ -60,7 +75,7 @@ contract AeroEmissionsStrategy is
 
         require(pending > 0, "no emissions to notify");
         require(
-            lastNotified[reserve] + 1 days <= block.timestamp,
+            lastNotified[_reserve] + 1 days <= block.timestamp,
             "too soon to notify"
         );
 
@@ -71,7 +86,7 @@ contract AeroEmissionsStrategy is
                 emissionPerSecond: uint88(emissionPerSecond),
                 totalSupply: 0,
                 distributionEnd: uint32(block.timestamp + 1 days),
-                asset: reserve,
+                asset: aTokenAddress,
                 reward: address(aero),
                 rewardOracle: IEACAggregatorProxy(oracle),
                 transferStrategy: ITransferStrategyBase(address(this))
@@ -82,7 +97,7 @@ contract AeroEmissionsStrategy is
         config[0] = data;
         emissionManager.configureAssets(config);
 
-        lastNotified[reserve] = block.timestamp;
+        lastNotified[_reserve] = block.timestamp;
     }
 
     /// @inheritdoc ITransferStrategyBase

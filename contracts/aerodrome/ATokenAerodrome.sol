@@ -114,4 +114,8 @@ contract ATokenAerodrome is AToken {
             address(this)
         );
     }
+
+    function refreshRewards() external {
+        gauge.getReward(address(this));
+    }
 }
