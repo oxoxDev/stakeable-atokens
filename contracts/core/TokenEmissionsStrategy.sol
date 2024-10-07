@@ -5,28 +5,25 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@zerolendxyz/core-v3/contracts/dependencies/openzeppelin/contracts/IERC20.sol";
 import {Initializable} from "@zerolendxyz/core-v3/contracts/dependencies/openzeppelin/upgradeability/Initializable.sol";
 import {IEACAggregatorProxy, IEmissionManager, ITransferStrategyBase, RewardsDataTypes} from "@zerolendxyz/periphery-v3/contracts/rewards/interfaces/IEmissionManager.sol";
+import {IPool} from "@zerolendxyz/core-v3/contracts/interfaces/IPool.sol";
 
-interface IATokenMahaStaker {
+interface IATokenCustom {
     function refreshRewards() external;
 }
 
-contract MahaUsdcEmissionsStrategy is
+contract TokenEmissionsStrategy is
     Initializable,
     Ownable,
     ITransferStrategyBase
 {
     address public incentiveController;
     IEmissionManager public emissionManager;
-    IERC20 public maha;
-    IERC20 public usdc;
+    IPool public pool;
 
     mapping(address => mapping(IERC20 => uint256)) public emissionsReceived;
     mapping(address => uint256) public lastNotified;
     mapping(address => bool) public whitelisted;
     mapping(address => address) public aToken;
-    address public oracleMaha;
-    address public oracleUsdc;
-    address public runner;
 
     modifier onlyIncentivesController() {
         require(
@@ -38,40 +35,37 @@ contract MahaUsdcEmissionsStrategy is
 
     function initialize(
         address _owner,
-        address _maha,
-        address _usdc,
-        address _oracleMaha,
-        address _oracleUsdc,
+        address _pool,
         address _emissionManager,
-        address _runner,
         address _incentiveController
     ) public initializer {
-        maha = IERC20(_maha);
-        usdc = IERC20(_usdc);
         emissionManager = IEmissionManager(_emissionManager);
         incentiveController = _incentiveController;
         whitelisted[_owner] = true;
-        oracleMaha = _oracleMaha;
-        oracleUsdc = _oracleUsdc;
-        runner = _runner;
+        pool = IPool(_pool);
         _transferOwnership(_owner);
     }
 
-    function whitelist(
-        address _reserve,
-        address _aToken,
-        bool _what
-    ) external onlyOwner {
+    function whitelist(address _reserve, bool _what) external onlyOwner {
         whitelisted[_reserve] = _what;
-        aToken[_reserve] = _aToken;
     }
 
-    function notifyEmissionManager(address _reserve) external {
-        require(msg.sender == runner, "not runner");
-        require(whitelisted[_reserve], "not whitelisted");
+    function getAToken(address _reserve) public view returns (address) {
+        return pool.getReserveData(_reserve).aTokenAddress;
+    }
 
-        address aTokenAddress = aToken[_reserve];
-        IATokenMahaStaker(aTokenAddress).refreshRewards();
+    function notifyEmissionManager(
+        address _reserve,
+        IERC20 token,
+        address oracle
+    ) external {
+        require(whitelisted[_reserve], "!whitelist");
+        require(whitelisted[msg.sender], "!whitelist");
+        require(whitelisted[address(token)], "!whitelist");
+        require(whitelisted[oracle], "!whitelist");
+
+        address aTokenAddress = getAToken(_reserve);
+        IATokenCustom(aTokenAddress).refreshRewards();
 
         require(
             lastNotified[_reserve] + 1 days <= block.timestamp,
@@ -79,10 +73,9 @@ contract MahaUsdcEmissionsStrategy is
         );
 
         RewardsDataTypes.RewardsConfigInput[]
-            memory config = new RewardsDataTypes.RewardsConfigInput[](2);
+            memory config = new RewardsDataTypes.RewardsConfigInput[](1);
 
-        config[0] = _notifyEmissionManager(aTokenAddress, maha, oracleMaha);
-        config[1] = _notifyEmissionManager(aTokenAddress, usdc, oracleUsdc);
+        config[0] = _notifyEmissionManager(aTokenAddress, token, oracle);
 
         emissionManager.configureAssets(config);
         lastNotified[_reserve] = block.timestamp;
