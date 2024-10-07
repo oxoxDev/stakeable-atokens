@@ -18,11 +18,8 @@ import {IEmissionManager} from "@zerolendxyz/periphery-v3/contracts/rewards/inte
 // Test Contract
 contract AeroATokenTest is Test {
     // Addresses
-    address public owner = makeAddr("owner");
-    address public whale = makeAddr("whale");
     address public ant = makeAddr("ant");
     address public lpWhale = 0xc1342eE2B9d9E8f1B7A612131b69cf03261957E0;
-    address public governance = makeAddr("governance");
 
     // Constants
     uint256 internal mintAmount = 100 * 10 ** 18;
@@ -60,7 +57,7 @@ contract AeroATokenTest is Test {
     AeroEmissionsStrategy public strategy;
     IEmissionManager public emissionsManager =
         IEmissionManager(EMISSIONS_MANAGER);
-    IERC20 public underlying = IERC20(AEROUSDC_LP);
+    IERC20 public lpToken = IERC20(AEROUSDC_LP);
 
     IPoolConfigurator public poolConfigurator =
         IPoolConfigurator(POOL_CONFIGURATOR);
@@ -156,11 +153,11 @@ contract AeroATokenTest is Test {
 
         // Record initial balances
         uint256 balanceInGaugeBefore = gauge.balanceOf(AEROUSDC_LP_ATOKEN);
-        uint256 balance = underlying.balanceOf(lpWhale);
+        uint256 balance = lpToken.balanceOf(lpWhale);
 
         // deposit LP tokens into the lending pool
         vm.startPrank(lpWhale);
-        underlying.approve(POOL, balance);
+        lpToken.approve(POOL, balance);
         pool.deposit(
             AEROUSDC_LP, // address asset,
             balance, // uint256 amount,
@@ -170,7 +167,7 @@ contract AeroATokenTest is Test {
         vm.stopPrank();
 
         // all tokens should be staked in the gauge; nothing should be there in the atoken
-        assertEq(underlying.balanceOf(AEROUSDC_LP_ATOKEN), 0);
+        assertEq(lpToken.balanceOf(AEROUSDC_LP_ATOKEN), 0);
 
         // gauge deposit for the atoken should have increased
         assertGt(gauge.balanceOf(AEROUSDC_LP_ATOKEN), balanceInGaugeBefore);
