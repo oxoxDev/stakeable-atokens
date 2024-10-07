@@ -20,6 +20,7 @@ contract AeroATokenTest is Test {
     address public owner = makeAddr("owner");
     address public whale = makeAddr("whale");
     address public ant = makeAddr("ant");
+    address public lpWhale = 0xc1342eE2B9d9E8f1B7A612131b69cf03261957E0;
     address public governance = makeAddr("governance");
 
     // Constants
@@ -31,10 +32,11 @@ contract AeroATokenTest is Test {
 
     // Contract Addresses
     address internal AEROUSDC_LP_ATOKEN =
-        0x3c2b86d6308c24632Bb8716ED013567C952b53AE;
+        0xB6ccD85f92FB9a8bBC99b55091855714aAeEBFEE;
+    address internal AEROUSDC_LP = 0x6cDcb1C4A4D1C3C6d054b27AC5B77e89eAFb971d;
     address internal POOL_ADDRESS_PROVIDER =
         0x5213ab3997a596c75Ac6ebF81f8aEb9cf9A31007;
-    address internal AAVE_EMISSIONS_MANAGER =
+    address internal EMISSIONS_MANAGER =
         0x0f9bfa294bE6e3CA8c39221Bb5DFB88032C8936E;
     address internal INCENTIVES_CONTROLLER =
         0x73a7a4B40f3FE11e0BcaB5538c75D3B984082CAE;
@@ -55,7 +57,7 @@ contract AeroATokenTest is Test {
     IAerodromeGauge public gauge = IAerodromeGauge(GAUGE);
     IPool public pool = IPool(POOL);
     AeroEmissionsStrategy public strategy;
-    IERC20 public underlying;
+    IERC20 public underlying = IERC20(AEROUSDC_LP);
 
     IPoolConfigurator public poolConfigurator =
         IPoolConfigurator(POOL_CONFIGURATOR);
@@ -66,8 +68,6 @@ contract AeroATokenTest is Test {
         vm.selectFork(fork);
         vm.rollFork(20755363);
 
-        underlying = IERC20(gauge.stakingToken());
-
         // Deploy a new ATokenAerodrome instance
         ATokenAerodrome newAToken = new ATokenAerodrome(pool);
 
@@ -77,7 +77,7 @@ contract AeroATokenTest is Test {
             DEPLOYER,
             AERODROME,
             AERO_ORACLE,
-            AAVE_EMISSIONS_MANAGER,
+            EMISSIONS_MANAGER,
             INCENTIVES_CONTROLLER
         );
 
@@ -85,7 +85,7 @@ contract AeroATokenTest is Test {
         vm.prank(TREASURY);
         poolConfigurator.updateAToken(
             ConfiguratorInputTypes.UpdateATokenInput({
-                asset: AERODROME,
+                asset: AEROUSDC_LP,
                 treasury: TREASURY,
                 incentivesController: INCENTIVES_CONTROLLER,
                 name: "AeroAToken",
@@ -103,6 +103,21 @@ contract AeroATokenTest is Test {
             address(strategy),
             "!strategy"
         );
+
+        // give labels
+        vm.label(lpWhale, "lpWhale");
+        vm.label(AEROUSDC_LP_ATOKEN, "AEROUSDC_LP_ATOKEN");
+        vm.label(AEROUSDC_LP, "AEROUSDC_LP");
+        vm.label(POOL_ADDRESS_PROVIDER, "POOL_ADDRESS_PROVIDER");
+        vm.label(EMISSIONS_MANAGER, "EMISSIONS_MANAGER");
+        vm.label(INCENTIVES_CONTROLLER, "INCENTIVES_CONTROLLER");
+        vm.label(AERODROME, "AERODROME");
+        vm.label(TREASURY, "TREASURY");
+        vm.label(DEPLOYER, "DEPLOYER");
+        vm.label(GAUGE, "GAUGE");
+        vm.label(POOL_CONFIGURATOR, "POOL_CONFIGURATOR");
+        vm.label(POOL, "POOL");
+        vm.label(AERO_ORACLE, "AERO_ORACLE");
     }
 
     function test_initial_sweep() public {
@@ -120,34 +135,36 @@ contract AeroATokenTest is Test {
 
     // Test: Deposit Functionality
     function test_deposit() public {
-        // Allocate staking tokens to AERO_ATOKEN_PROXY
-        deal(address(underlying), AEROUSDC_LP_ATOKEN, mintAmount);
+        aToken.depositToGauge();
+        assertGt(gauge.balanceOf(AEROUSDC_LP_ATOKEN), 0);
+        assertEq(aero.balanceOf(AEROUSDC_LP_ATOKEN), 0);
 
-        // Approve GAUGE to spend staking tokens
-        vm.startPrank(AEROUSDC_LP_ATOKEN, AEROUSDC_LP_ATOKEN);
-        underlying.approve(GAUGE, mintAmount);
-        vm.stopPrank();
+        // move time forward to accumulate AERO rewards
+        vm.warp(block.timestamp + 10 days);
 
         // Record initial balances
         uint256 balanceInGaugeBefore = gauge.balanceOf(AEROUSDC_LP_ATOKEN);
-        uint256 balanceStrategyBefore = aero.balanceOf(address(strategy));
+        uint256 balance = underlying.balanceOf(lpWhale);
 
-        // Perform deposit
-        vm.startPrank(POOL, POOL);
-        aToken.mint(ant, ant, mintAmount, INDEX);
+        // deposit LP tokens into the lending pool
+        vm.startPrank(lpWhale);
+        underlying.approve(POOL, balance);
+        pool.deposit(
+            AEROUSDC_LP, // address asset,
+            balance, // uint256 amount,
+            lpWhale, // address onBehalfOf,
+            0 // uint16 referralCode
+        );
         vm.stopPrank();
 
-        // Assert post-deposit balances
-        assertGt(
-            gauge.balanceOf(AEROUSDC_LP_ATOKEN),
-            balanceInGaugeBefore,
-            "!balanceInGaugeBefore"
-        );
-        assertGt(
-            aero.balanceOf(address(strategy)),
-            balanceStrategyBefore,
-            "!balanceStrategyBefore"
-        );
+        // all tokens should be staked in the gauge; nothing should be there in the atoken
+        assertEq(underlying.balanceOf(AEROUSDC_LP_ATOKEN), 0);
+
+        // gauge deposit for the atoken should have increased
+        assertGt(gauge.balanceOf(AEROUSDC_LP_ATOKEN), balanceInGaugeBefore);
+
+        // the atokens should have received rewards (later claimable by the strategy)
+        assertGt(aero.balanceOf(AEROUSDC_LP_ATOKEN), 0);
     }
 
     // Test: Withdrawal Functionality
