@@ -18,8 +18,9 @@ import {IEmissionManager} from "@zerolendxyz/periphery-v3/contracts/rewards/inte
 // Test Contract
 contract AeroATokenTest is Test {
     // Addresses
-    address public ant = makeAddr("ant");
+    address public cronRunner = makeAddr("cronRunner");
     address public lpWhale = 0xc1342eE2B9d9E8f1B7A612131b69cf03261957E0;
+    address public lpUser = 0xc1342eE2B9d9E8f1B7A612131b69cf03261957E0; // todo
 
     // Constants
     uint256 internal mintAmount = 100 * 10 ** 18;
@@ -78,7 +79,7 @@ contract AeroATokenTest is Test {
             AERODROME,
             AERO_ORACLE,
             EMISSIONS_MANAGER,
-            ant,
+            cronRunner,
             INCENTIVES_CONTROLLER
         );
 
@@ -210,7 +211,7 @@ contract AeroATokenTest is Test {
         vm.warp(block.timestamp + 10 days);
         aToken.refreshRewards();
 
-        vm.prank(ant);
+        vm.prank(cronRunner);
         strategy.notifyEmissionManager(AEROUSDC_LP);
 
         // // Approve GAUGE to spend staking tokens
