@@ -30,7 +30,7 @@ contract AeroATokenTest is Test {
     string BASE_RPC_URL = vm.envString("BASE_RPC_URL");
 
     // Contract Addresses
-    address internal AERO_ATOKEN_PROXY =
+    address internal AEROUSDC_LP_ATOKEN =
         0x3c2b86d6308c24632Bb8716ED013567C952b53AE;
     address internal POOL_ADDRESS_PROVIDER =
         0x5213ab3997a596c75Ac6ebF81f8aEb9cf9A31007;
@@ -48,20 +48,14 @@ contract AeroATokenTest is Test {
     address internal AERO_ORACLE = 0x4EC5970fC728C5f65ba413992CD5fF6FD70fcfF0;
 
     // Contract Interfaces
-    IERC20 public aeroToken = IERC20(AERODROME);
-
-    ATokenAerodrome public aToken = ATokenAerodrome(AERO_ATOKEN_PROXY);
-
-    IPoolAddressesProvider public addressProvider =
+    IPoolAddressesProvider public provider =
         IPoolAddressesProvider(POOL_ADDRESS_PROVIDER);
-
+    IERC20 public aero = IERC20(AERODROME);
+    ATokenAerodrome public aToken = ATokenAerodrome(AEROUSDC_LP_ATOKEN);
     IAerodromeGauge public gauge = IAerodromeGauge(GAUGE);
-
     IPool public pool = IPool(POOL);
-
-    AeroEmissionsStrategy public emissionStrategy;
-
-    IERC20 public stakingToken = IERC20(gauge.stakingToken());
+    AeroEmissionsStrategy public strategy;
+    IERC20 public underlying;
 
     IPoolConfigurator public poolConfigurator =
         IPoolConfigurator(POOL_CONFIGURATOR);
@@ -70,14 +64,16 @@ contract AeroATokenTest is Test {
     function setUp() public {
         uint256 fork = vm.createFork(BASE_RPC_URL);
         vm.selectFork(fork);
-        vm.rollFork(19_141_574);
+        vm.rollFork(20755363);
+
+        underlying = IERC20(gauge.stakingToken());
 
         // Deploy a new ATokenAerodrome instance
         ATokenAerodrome newAToken = new ATokenAerodrome(pool);
 
         // Deploy and initialize AeroEmissionsStrategy
-        emissionStrategy = new AeroEmissionsStrategy();
-        emissionStrategy.initialize(
+        strategy = new AeroEmissionsStrategy();
+        strategy.initialize(
             DEPLOYER,
             AERODROME,
             AERO_ORACLE,
@@ -95,39 +91,46 @@ contract AeroATokenTest is Test {
                 name: "AeroAToken",
                 symbol: "AeroAToken",
                 implementation: address(newAToken),
-                params: abi.encode(GAUGE, address(emissionStrategy))
+                params: abi.encode(GAUGE, address(strategy))
             })
         );
 
         // Verify Initialization
-        assertEq(address(aToken.gauge()), GAUGE, "Gauge address mismatch");
-        assertEq(
-            address(aToken.aero()),
-            AERODROME,
-            "AERO token address mismatch"
-        );
+        assertEq(address(aToken.gauge()), GAUGE, "!gauge");
+        assertEq(address(aToken.aero()), AERODROME, "!aero");
         assertEq(
             address(aToken.aeroEmissionReceiver()),
-            address(emissionStrategy),
-            "Emission receiver address mismatch"
+            address(strategy),
+            "!strategy"
+        );
+    }
+
+    function test_initial_sweep() public {
+        uint256 balanceInGaugeBefore = gauge.balanceOf(AEROUSDC_LP_ATOKEN);
+        aToken.depositToGauge();
+        uint256 balanceInGaugeAfter = gauge.balanceOf(AEROUSDC_LP_ATOKEN);
+
+        assertEq(balanceInGaugeBefore, 0, "!balanceInGaugeBefore");
+        assertGt(
+            balanceInGaugeAfter,
+            balanceInGaugeBefore,
+            "Gauge balance did not increase after deposit"
         );
     }
 
     // Test: Deposit Functionality
     function test_deposit() public {
         // Allocate staking tokens to AERO_ATOKEN_PROXY
-        deal(address(stakingToken), AERO_ATOKEN_PROXY, mintAmount);
+        deal(address(underlying), AEROUSDC_LP_ATOKEN, mintAmount);
 
         // Approve GAUGE to spend staking tokens
-        vm.startPrank(AERO_ATOKEN_PROXY, AERO_ATOKEN_PROXY);
-        stakingToken.approve(GAUGE, mintAmount);
+        vm.startPrank(AEROUSDC_LP_ATOKEN, AEROUSDC_LP_ATOKEN);
+        underlying.approve(GAUGE, mintAmount);
         vm.stopPrank();
 
         // Record initial balances
-        uint256 balanceInGaugeBefore = gauge.balanceOf(AERO_ATOKEN_PROXY);
-        uint256 balanceEmissionReceiverBefore = aeroToken.balanceOf(
-            address(emissionStrategy)
-        );
+        uint256 balanceInGaugeBefore = gauge.balanceOf(AEROUSDC_LP_ATOKEN);
+        uint256 balanceStrategyBefore = aero.balanceOf(address(strategy));
 
         // Perform deposit
         vm.startPrank(POOL, POOL);
@@ -136,52 +139,52 @@ contract AeroATokenTest is Test {
 
         // Assert post-deposit balances
         assertGt(
-            gauge.balanceOf(AERO_ATOKEN_PROXY),
+            gauge.balanceOf(AEROUSDC_LP_ATOKEN),
             balanceInGaugeBefore,
-            "Gauge balance did not increase"
+            "!balanceInGaugeBefore"
         );
         assertGt(
-            aeroToken.balanceOf(address(emissionStrategy)),
-            balanceEmissionReceiverBefore,
-            "Emission receiver balance did not increase"
+            aero.balanceOf(address(strategy)),
+            balanceStrategyBefore,
+            "!balanceStrategyBefore"
         );
     }
 
     // Test: Withdrawal Functionality
     function test_withdraw() public {
         // Allocate staking tokens to AERO_ATOKEN_PROXY
-        deal(address(stakingToken), AERO_ATOKEN_PROXY, mintAmount);
+        deal(address(underlying), AEROUSDC_LP_ATOKEN, mintAmount);
 
         // Approve GAUGE to spend staking tokens
-        vm.startPrank(AERO_ATOKEN_PROXY, AERO_ATOKEN_PROXY);
-        stakingToken.approve(GAUGE, mintAmount);
+        vm.startPrank(AEROUSDC_LP_ATOKEN, AEROUSDC_LP_ATOKEN);
+        underlying.approve(GAUGE, mintAmount);
         vm.stopPrank();
 
         // Record initial balances
-        uint256 balanceInGaugeBefore = gauge.balanceOf(AERO_ATOKEN_PROXY);
-        uint256 balanceEmissionReceiverBefore = aeroToken.balanceOf(
-            address(emissionStrategy)
-        );
+        uint256 balanceAtokenBefore = gauge.balanceOf(AEROUSDC_LP_ATOKEN);
+        uint256 balanceStrategyBefore = aero.balanceOf(address(strategy));
 
         // Perform deposit
         vm.startPrank(POOL, POOL);
         aToken.mint(ant, ant, mintAmount, INDEX);
         vm.stopPrank();
 
-        uint256 balanceInGaugeAfterDeposit = gauge.balanceOf(AERO_ATOKEN_PROXY);
+        uint256 balanceInGaugeAfterDeposit = gauge.balanceOf(
+            AEROUSDC_LP_ATOKEN
+        );
         assertGt(
-            balanceInGaugeAfterDeposit,
-            balanceInGaugeBefore,
+            balanceAtokenBefore,
+            balanceStrategyBefore,
             "Gauge balance did not increase after deposit"
         );
 
         // Perform withdrawal
         vm.startPrank(POOL, POOL);
-        aToken.burn(ant, AERO_ATOKEN_PROXY, mintAmount, INDEX);
+        aToken.burn(ant, AEROUSDC_LP_ATOKEN, mintAmount, INDEX);
         vm.stopPrank();
 
         uint256 balanceInGaugeAfterWithdrawal = gauge.balanceOf(
-            AERO_ATOKEN_PROXY
+            AEROUSDC_LP_ATOKEN
         );
         assertLt(
             balanceInGaugeAfterWithdrawal,
@@ -193,16 +196,16 @@ contract AeroATokenTest is Test {
     // Test: Reward Distribution
     function test_rewards() public {
         // Allocate staking tokens to AERO_ATOKEN_PROXY
-        deal(address(stakingToken), AERO_ATOKEN_PROXY, mintAmount);
+        deal(address(underlying), AEROUSDC_LP_ATOKEN, mintAmount);
 
         // Approve GAUGE to spend staking tokens
-        vm.startPrank(AERO_ATOKEN_PROXY, AERO_ATOKEN_PROXY);
-        stakingToken.approve(GAUGE, mintAmount);
+        vm.startPrank(AEROUSDC_LP_ATOKEN, AEROUSDC_LP_ATOKEN);
+        underlying.approve(GAUGE, mintAmount);
         vm.stopPrank();
 
         // Record initial emission receiver balance
-        uint256 balanceEmissionReceiverBefore = aeroToken.balanceOf(
-            address(emissionStrategy)
+        uint256 balanceEmissionReceiverBefore = aero.balanceOf(
+            address(strategy)
         );
 
         // Perform deposit which should trigger reward distribution
@@ -211,8 +214,8 @@ contract AeroATokenTest is Test {
         vm.stopPrank();
 
         // Record post-deposit emission receiver balance
-        uint256 balanceEmissionReceiverAfter = aeroToken.balanceOf(
-            address(emissionStrategy)
+        uint256 balanceEmissionReceiverAfter = aero.balanceOf(
+            address(strategy)
         );
 
         // Assert that rewards have been received

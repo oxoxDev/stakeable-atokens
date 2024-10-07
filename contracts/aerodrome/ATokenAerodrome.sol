@@ -28,17 +28,13 @@ interface IAerodromeGauge {
     function stakingToken() external view returns (address);
 }
 
-interface IAerodromeEmissionReceiver {
-    function receiveAeroEmission(uint256 amount) external;
-}
-
 /// @dev NOTE That ATokenAerodrome should not be made borrowable
 contract ATokenAerodrome is AToken {
     using GPv2SafeERC20 for IERC20;
 
     IAerodromeGauge public gauge;
     IERC20 public aero;
-    IAerodromeEmissionReceiver public aeroEmissionReceiver;
+    address public aeroEmissionReceiver;
 
     constructor(IPool pool) AToken(pool) {
         // Intentionally left blank
@@ -77,7 +73,7 @@ contract ATokenAerodrome is AToken {
 
         // set variables
         gauge = IAerodromeGauge(_gauge);
-        aeroEmissionReceiver = IAerodromeEmissionReceiver(_receiver);
+        aeroEmissionReceiver = _receiver;
         aero = IERC20(gauge.rewardToken());
 
         // give approvals
