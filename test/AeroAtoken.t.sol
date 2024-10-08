@@ -5,8 +5,8 @@ pragma solidity ^0.8.0;
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 
 import {IPool} from "@zerolendxyz/core-v3/contracts/interfaces/IPool.sol";
-import {ATokenAerodrome, IAerodromeGauge} from "contracts/aerodrome/ATokenAerodrome.sol";
-import {AeroEmissionsStrategy} from "contracts/aerodrome/AeroEmissionsStrategy.sol";
+import {ATokenAerodromeLP, IAerodromeGauge} from "contracts/aerodrome/ATokenAerodromeLP.sol";
+import {TokenEmissionsStrategy} from "contracts/core/TokenEmissionsStrategy.sol";
 
 import {IAToken, IAaveIncentivesController, IERC20, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
 import {IPoolConfigurator, ConfiguratorInputTypes} from "@zerolendxyz/core-v3/contracts/interfaces/IPoolConfigurator.sol";
@@ -52,10 +52,10 @@ contract AeroATokenTest is Test {
     IPoolAddressesProvider public provider =
         IPoolAddressesProvider(POOL_ADDRESS_PROVIDER);
     IERC20 public aero = IERC20(AERODROME);
-    ATokenAerodrome public aToken = ATokenAerodrome(AEROUSDC_LP_ATOKEN);
+    ATokenAerodromeLP public aToken = ATokenAerodromeLP(AEROUSDC_LP_ATOKEN);
     IAerodromeGauge public gauge = IAerodromeGauge(GAUGE);
     IPool public pool = IPool(POOL);
-    AeroEmissionsStrategy public strategy;
+    TokenEmissionsStrategy public strategy;
     IEmissionManager public emissionsManager =
         IEmissionManager(EMISSIONS_MANAGER);
     IERC20 public lpToken = IERC20(AEROUSDC_LP);
@@ -69,18 +69,22 @@ contract AeroATokenTest is Test {
         vm.selectFork(fork);
         vm.rollFork(20755363);
 
-        // Deploy a new ATokenAerodrome instance
-        ATokenAerodrome newAToken = new ATokenAerodrome(pool);
+        // Deploy a new ATokenAerodromeLP instance
+        ATokenAerodromeLP newAToken = new ATokenAerodromeLP(pool);
 
-        // Deploy and initialize AeroEmissionsStrategy
-        strategy = new AeroEmissionsStrategy();
+        // Deploy and initialize TokenEmissionsStrategy
+        strategy = new TokenEmissionsStrategy();
         strategy.initialize(
-            DEPLOYER,
-            AERODROME,
-            AERO_ORACLE,
-            EMISSIONS_MANAGER,
-            cronRunner,
-            INCENTIVES_CONTROLLER
+            DEPLOYER, // address _owner,
+            POOL, // address _pool,
+            EMISSIONS_MANAGER, // address _emissionManager,
+            INCENTIVES_CONTROLLER // address _incentiveController
+            // DEPLOYER,
+            // AERODROME,
+            // AERO_ORACLE,
+            // EMISSIONS_MANAGER,
+            // cronRunner,
+            // INCENTIVES_CONTROLLER
         );
 
         // Update the AToken in the Pool Configurator
@@ -98,8 +102,12 @@ contract AeroATokenTest is Test {
         );
 
         // init the strategy
-        vm.prank(DEPLOYER);
-        strategy.whitelist(AEROUSDC_LP, AEROUSDC_LP_ATOKEN, true);
+        vm.startPrank(DEPLOYER);
+        strategy.whitelist(AEROUSDC_LP, true);
+        strategy.whitelist(AERODROME, true);
+        strategy.whitelist(cronRunner, true);
+        strategy.whitelist(AERO_ORACLE, true);
+        vm.stopPrank();
 
         // grant emission admin rights to the strategy for the aero token
         vm.prank(TREASURY);
@@ -212,7 +220,7 @@ contract AeroATokenTest is Test {
         aToken.refreshRewards();
 
         vm.prank(cronRunner);
-        strategy.notifyEmissionManager(AEROUSDC_LP);
+        strategy.notifyEmissionManager(AEROUSDC_LP, aero, AERO_ORACLE);
 
         // // Approve GAUGE to spend staking tokens
         // vm.startPrank(AEROUSDC_LP_ATOKEN, AEROUSDC_LP_ATOKEN);

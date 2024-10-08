@@ -4,8 +4,9 @@ pragma solidity ^0.8.0;
 import {AToken, GPv2SafeERC20, IAaveIncentivesController, IERC20, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
 import {IAerodromeGauge} from "../interfaces/IAerodromeGauge.sol";
 
-/// @dev NOTE That ATokenAerodrome should not be made borrowable
-contract ATokenAerodrome is AToken {
+/// @dev NOTE That ATokenAerodromeLP should not be made borrowable
+/// @notice ATokenAerodromeLP is a custom AToken for Aerodrome LP tokens
+contract ATokenAerodromeLP is AToken {
     using GPv2SafeERC20 for IERC20;
 
     IAerodromeGauge public gauge;
@@ -94,5 +95,12 @@ contract ATokenAerodrome is AToken {
     /// @dev Used to fetch any remaining rewards in the gauge to the contract
     function refreshRewards() public {
         gauge.getReward(address(this));
+    }
+
+    /// @dev Used to set the emissions manager
+    function setEmissionsManager(address newManager) public onlyPoolAdmin {
+        aero.approve(address(aeroEmissionReceiver), 0);
+        aeroEmissionReceiver = newManager;
+        aero.approve(address(aeroEmissionReceiver), type(uint256).max);
     }
 }

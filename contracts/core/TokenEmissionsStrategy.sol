@@ -20,6 +20,8 @@ contract TokenEmissionsStrategy is
     IEmissionManager public emissionManager;
     IPool public pool;
 
+    event Whitelisted(address indexed who, bool isWhitelisted);
+
     mapping(address => mapping(IERC20 => uint256)) public emissionsReceived;
     mapping(address => uint256) public lastNotified;
     mapping(address => bool) public whitelisted;
@@ -48,6 +50,7 @@ contract TokenEmissionsStrategy is
 
     function whitelist(address _reserve, bool _what) external onlyOwner {
         whitelisted[_reserve] = _what;
+        emit Whitelisted(_reserve, _what);
     }
 
     function getAToken(address _reserve) public view returns (address) {
@@ -59,10 +62,10 @@ contract TokenEmissionsStrategy is
         IERC20 token,
         address oracle
     ) external {
-        require(whitelisted[_reserve], "!whitelist");
-        require(whitelisted[msg.sender], "!whitelist");
-        require(whitelisted[address(token)], "!whitelist");
-        require(whitelisted[oracle], "!whitelist");
+        require(whitelisted[_reserve], "!whitelist reserve");
+        require(whitelisted[msg.sender], "!whitelist sender");
+        require(whitelisted[address(token)], "!whitelist token");
+        require(whitelisted[oracle], "!whitelist oracle");
 
         address aTokenAddress = getAToken(_reserve);
         IATokenCustom(aTokenAddress).refreshRewards();

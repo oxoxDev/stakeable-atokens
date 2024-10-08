@@ -84,4 +84,13 @@ contract ATokenPendleLP is AToken {
     function refreshRewards() public {
         market.redeemRewards(address(this));
     }
+
+    /// @dev Used to set the emissions manager
+    function setEmissionsManager(
+        address _emissionReceiver
+    ) public onlyPoolAdmin {
+        pendle.approve(address(emissionReceiver), 0);
+        emissionReceiver = _emissionReceiver;
+        pendle.approve(address(emissionReceiver), type(uint256).max);
+    }
 }

@@ -77,4 +77,18 @@ contract ATokenMahaStaker is AToken {
     function refreshRewards() public {
         IMahaStakingRewards(_underlyingAsset).getRewardDual(address(this));
     }
+
+    /// @dev Used to set the emissions manager
+    function setEmissionsManager(address newManager) public onlyPoolAdmin {
+        address token1 = IMahaStakingRewards(_underlyingAsset).rewardToken1();
+        address token2 = IMahaStakingRewards(_underlyingAsset).rewardToken2();
+
+        IERC20(token1).approve(address(emissionReceiver), 0);
+        IERC20(token2).approve(address(emissionReceiver), 0);
+
+        emissionReceiver = newManager;
+
+        IERC20(token1).approve(address(newManager), type(uint256).max);
+        IERC20(token2).approve(address(newManager), type(uint256).max);
+    }
 }
