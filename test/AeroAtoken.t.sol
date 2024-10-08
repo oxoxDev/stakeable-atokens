@@ -79,12 +79,6 @@ contract AeroATokenTest is Test {
             POOL, // address _pool,
             EMISSIONS_MANAGER, // address _emissionManager,
             INCENTIVES_CONTROLLER // address _incentiveController
-            // DEPLOYER,
-            // AERODROME,
-            // AERO_ORACLE,
-            // EMISSIONS_MANAGER,
-            // cronRunner,
-            // INCENTIVES_CONTROLLER
         );
 
         // Update the AToken in the Pool Configurator
@@ -251,4 +245,11 @@ contract AeroATokenTest is Test {
     }
 
     // TODO: Add additional fork tests for withdrawal, liquidations, and edge cases
+    function test_liquidation() public {
+        test_deposit();
+
+        // get the lp whale to borrow some asset and check the health factor
+        // change the price oracle of the LP token to make the health factor < 1
+        // perform a successful liquidation of the user
+    }
 }
