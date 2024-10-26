@@ -13,6 +13,10 @@ const config: HardhatUserConfig = {
       url: `https://mainnet.base.org/`,
       accounts: [process.env.PRIVATE_KEY || ""],
     },
+    berachain_bartio: {
+      url: "https://bartio.rpc.berachain.com/",
+      accounts: [process.env.PRIVATE_KEY || ""],
+    } 
   },
   dependencyCompiler: {
     paths: ["@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol"],
@@ -20,7 +24,18 @@ const config: HardhatUserConfig = {
   etherscan: {
     apiKey: {
       base: process.env.BASESCAN_KEY || "",
+      berachain_bartio: "BARTIO_KEY",
     },
+    customChains: [
+      {
+        network: "berachain_bartio",
+        chainId: 80084,
+        urls: {
+          apiURL: "https://api.routescan.io/v2/network/testnet/evm/80084/etherscan",
+          browserURL: "https://bartio.beratrail.io"
+        },
+      },
+    ]
   },
 };
 
