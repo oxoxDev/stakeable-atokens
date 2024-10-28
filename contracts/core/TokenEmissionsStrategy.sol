@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@zerolendxyz/core-v3/contracts/dependencies/openzeppelin/contracts/IERC20.sol";
-import {Initializable} from "@zerolendxyz/core-v3/contracts/dependencies/openzeppelin/upgradeability/Initializable.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {IEACAggregatorProxy, IEmissionManager, ITransferStrategyBase, RewardsDataTypes} from "@zerolendxyz/periphery-v3/contracts/rewards/interfaces/IEmissionManager.sol";
 import {IPool} from "@zerolendxyz/core-v3/contracts/interfaces/IPool.sol";
 
@@ -45,6 +45,10 @@ contract TokenEmissionsStrategy is
             "CALLER_NOT_INCENTIVES_CONTROLLER"
         );
         _;
+    }
+
+    constructor() {
+        _disableInitializers();
     }
 
     function initialize(
