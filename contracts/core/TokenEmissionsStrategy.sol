@@ -2,7 +2,8 @@
 pragma solidity ^0.8.0;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC20} from "@zerolendxyz/core-v3/contracts/dependencies/openzeppelin/contracts/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {IEACAggregatorProxy, IEmissionManager, ITransferStrategyBase, RewardsDataTypes} from "@zerolendxyz/periphery-v3/contracts/rewards/interfaces/IEmissionManager.sol";
 import {IPool} from "@zerolendxyz/core-v3/contracts/interfaces/IPool.sol";
@@ -19,6 +20,8 @@ contract TokenEmissionsStrategy is
     Ownable,
     ITransferStrategyBase
 {
+    using SafeERC20 for IERC20;
+
     /// @dev The incentive controller contract used to transfer the rewards
     address public incentiveController;
 
@@ -156,7 +159,8 @@ contract TokenEmissionsStrategy is
         onlyIncentivesController
         returns (bool)
     {
-        return IERC20(reward).transfer(to, amount);
+        IERC20(reward).safeTransfer(to, amount);
+        return true;
     }
 
     /// @inheritdoc ITransferStrategyBase
@@ -180,7 +184,7 @@ contract TokenEmissionsStrategy is
         address to,
         uint256 amount
     ) external onlyOwner {
-        IERC20(token).transfer(to, amount);
+        IERC20(token).safeTransfer(to, amount);
         emit EmergencyWithdrawal(msg.sender, token, to, amount);
     }
 }
