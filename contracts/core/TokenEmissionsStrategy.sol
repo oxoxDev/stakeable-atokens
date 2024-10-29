@@ -39,6 +39,9 @@ contract TokenEmissionsStrategy is
     /// @dev Mapping to keep track of the whitelisted addresses
     mapping(address => bool) public whitelisted;
 
+    /// @dev storage gap to avoid future storage layout conflicts
+    uint256[50] private __gap;
+
     modifier onlyIncentivesController() {
         require(
             incentiveController == msg.sender,
