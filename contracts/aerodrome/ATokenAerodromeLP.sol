@@ -1,41 +1,17 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
-import {IPool, IAaveIncentivesController, IERC20, AToken, GPv2SafeERC20} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
+import {AToken, GPv2SafeERC20, IAaveIncentivesController, IERC20, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
+import {IAerodromeGauge} from "../interfaces/IAerodromeGauge.sol";
 
-interface IAerodromeGuage {
-    /// @notice Get the amount of stakingToken deposited by an account
-    function balanceOf(address) external view returns (uint256);
-
-    /// @notice Deposit LP tokens into gauge for any user
-    /// @param _amount .
-    /// @param _recipient Recipient to give balance to
-    function deposit(uint256 _amount, address _recipient) external;
-
-    /// @notice Withdraw LP tokens for user
-    /// @param _amount .
-    function withdraw(uint256 _amount) external;
-
-    /// @notice Retrieve rewards for an address.
-    /// @dev Throws if not called by same address or voter.
-    /// @param _account .
-    function getReward(address _account) external;
-
-    /// @notice Address of the token (AERO) rewarded to stakers
-    function rewardToken() external view returns (address);
-}
-
-interface IAerodromeEmissionReceiver {
-    function receiveAeroEmission(uint256 amount) external;
-}
-
-/// @dev NOTE That ATokenAerodrome should not be made borrowable
-contract ATokenAerodrome is AToken {
+/// @dev NOTE That ATokenAerodromeLP should not be made borrowable
+/// @notice ATokenAerodromeLP is a custom AToken for Aerodrome LP tokens
+contract ATokenAerodromeLP is AToken {
     using GPv2SafeERC20 for IERC20;
 
-    IAerodromeGuage public gauge;
+    IAerodromeGauge public gauge;
     IERC20 public aero;
-    IAerodromeEmissionReceiver public aeroEmissionReceiver;
+    address public aeroEmissionReceiver;
 
     constructor(IPool pool) AToken(pool) {
         // Intentionally left blank
@@ -73,15 +49,13 @@ contract ATokenAerodrome is AToken {
         );
 
         // set variables
-        gauge = IAerodromeGuage(_gauge);
-        aeroEmissionReceiver = IAerodromeEmissionReceiver(_receiver);
+        gauge = IAerodromeGauge(_gauge);
+        aeroEmissionReceiver = _receiver;
         aero = IERC20(gauge.rewardToken());
 
         // give approvals
         aero.approve(address(aeroEmissionReceiver), type(uint256).max);
         IERC20(_underlyingAsset).approve(address(gauge), type(uint256).max);
-
-        // todo ensure that the pool has set this reserve as NOT borrowable
     }
 
     function mint(
@@ -92,7 +66,7 @@ contract ATokenAerodrome is AToken {
     ) external virtual override onlyPool returns (bool ret) {
         ret = _mintScaled(caller, onBehalfOf, amount, index);
         gauge.deposit(amount, address(this));
-        _claimAndRegisterReward();
+        refreshRewards();
     }
 
     function burn(
@@ -101,7 +75,7 @@ contract ATokenAerodrome is AToken {
         uint256 amount,
         uint256 index
     ) external virtual override onlyPool {
-        _claimAndRegisterReward();
+        refreshRewards();
         gauge.withdraw(amount);
 
         _burnScaled(from, receiverOfUnderlying, amount, index);
@@ -110,6 +84,7 @@ contract ATokenAerodrome is AToken {
         }
     }
 
+    /// @dev Used to deposit any remaining balance in the contract to the gauge
     function depositToGauge() external {
         gauge.deposit(
             IERC20(_underlyingAsset).balanceOf(address(this)),
@@ -117,12 +92,15 @@ contract ATokenAerodrome is AToken {
         );
     }
 
-    function _claimAndRegisterReward() internal {
+    /// @dev Used to fetch any remaining rewards in the gauge to the contract
+    function refreshRewards() public {
         gauge.getReward(address(this));
-        if (aeroEmissionReceiver != IAerodromeEmissionReceiver(address(0))) {
-            aeroEmissionReceiver.receiveAeroEmission(
-                aero.balanceOf(address(this))
-            );
-        }
+    }
+
+    /// @dev Used to set the emissions manager
+    function setEmissionsManager(address newManager) public onlyPoolAdmin {
+        aero.approve(address(aeroEmissionReceiver), 0);
+        aeroEmissionReceiver = newManager;
+        aero.approve(address(aeroEmissionReceiver), type(uint256).max);
     }
 }

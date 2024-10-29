@@ -8,6 +8,8 @@ forge-build
 /cache
 /artifacts
 
+#foundry files
+/forge-build
 # TypeChain files
 /typechain
 /typechain-types
