@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
-import {AToken, GPv2SafeERC20, IAaveIncentivesController, IERC20, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
+import {AToken, GPv2SafeERC20, Errors, WadRayMath, IAaveIncentivesController, IERC20, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
 
 
 import {IBerachainRewardsVault} from "../interfaces/IBerachainRewardsVault.sol";
@@ -9,6 +9,7 @@ import {IBerachainRewardsVault} from "../interfaces/IBerachainRewardsVault.sol";
 
 contract ATokenBerachain is AToken {
     using GPv2SafeERC20 for IERC20;
+    using WadRayMath for uint256;
 
     IBerachainRewardsVault public rewardsVault;
 
@@ -57,7 +58,11 @@ contract ATokenBerachain is AToken {
         uint256 amount,
         uint256 index
     ) external virtual override onlyPool returns (bool ret) {
-        _notifyRewardsVault(onBehalfOf, amount, IBerachainRewardsVault.Operation.MINT);
+        uint256 amountScaled = amount.rayDiv(index);
+        require(amountScaled != 0, Errors.INVALID_MINT_AMOUNT);
+
+        _notifyRewardsVault(onBehalfOf, amountScaled, IBerachainRewardsVault.Operation.MINT);
+
         ret = _mintScaled(caller, onBehalfOf, amount, index);
     }
 
@@ -67,7 +72,11 @@ contract ATokenBerachain is AToken {
         uint256 amount,
         uint256 index
     ) external virtual override onlyPool {
-        _notifyRewardsVault(from, amount, IBerachainRewardsVault.Operation.BURN);
+        uint256 amountScaled = amount.rayDiv(index);
+        require(amountScaled != 0, Errors.INVALID_BURN_AMOUNT);
+
+        _notifyRewardsVault(from, amountScaled, IBerachainRewardsVault.Operation.BURN);
+
         _burnScaled(from, receiverOfUnderlying, amount, index);
         if (receiverOfUnderlying != address(this)) {
             IERC20(_underlyingAsset).safeTransfer(receiverOfUnderlying, amount);
