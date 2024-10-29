@@ -2,13 +2,15 @@
 pragma solidity ^0.8.0;
 
 import {IPMarket} from "@pendle/core-v2/contracts/interfaces/IPMarket.sol";
-import {AToken, GPv2SafeERC20, IAaveIncentivesController, IERC20, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {AToken, IAaveIncentivesController, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
 
 /// @notice ATokenPendleLP is a custom AToken for Pendle LP tokens
 /// @dev This contract is used to collect the PENDLE rewards from the Pendle Market contract
 /// @dev This contract restricts the minting of z0 tokens 1 day before expiry
 contract ATokenPendleLP is AToken {
-    using GPv2SafeERC20 for IERC20;
+    using SafeERC20 for IERC20;
 
     IPMarket public market;
     IERC20 public pendle;
@@ -54,7 +56,7 @@ contract ATokenPendleLP is AToken {
 
         // give approvals
         pendle = IERC20(_pendle);
-        pendle.approve(address(emissionReceiver), type(uint256).max);
+        _ensureApprove(_pendle, type(uint256).max);
     }
 
     function mint(
@@ -89,8 +91,14 @@ contract ATokenPendleLP is AToken {
     function setEmissionsManager(
         address _emissionReceiver
     ) public onlyPoolAdmin {
-        pendle.approve(address(emissionReceiver), 0);
+        _ensureApprove(address(pendle), 0);
         emissionReceiver = _emissionReceiver;
-        pendle.approve(address(emissionReceiver), type(uint256).max);
+        _ensureApprove(address(pendle), type(uint256).max);
+    }
+
+    function _ensureApprove(address _token, uint _amt) internal {
+        if (IERC20(_token).allowance(address(this), address(emissionReceiver)) < _amt) {
+            IERC20(_token).forceApprove(address(emissionReceiver), type(uint).max);
+        }
     }
 }

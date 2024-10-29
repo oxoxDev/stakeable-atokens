@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
-import {AToken, GPv2SafeERC20, IAaveIncentivesController, IERC20, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {AToken, IAaveIncentivesController, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
 import {IAerodromeGauge} from "../interfaces/IAerodromeGauge.sol";
 
 /// @dev NOTE That ATokenAerodromeLP should not be made borrowable
 /// @notice ATokenAerodromeLP is a custom AToken for Aerodrome LP tokens
 contract ATokenAerodromeLP is AToken {
-    using GPv2SafeERC20 for IERC20;
+    using SafeERC20 for IERC20;
 
     IAerodromeGauge public gauge;
     IERC20 public aero;
@@ -54,8 +56,8 @@ contract ATokenAerodromeLP is AToken {
         aero = IERC20(gauge.rewardToken());
 
         // give approvals
-        aero.approve(address(aeroEmissionReceiver), type(uint256).max);
-        IERC20(_underlyingAsset).approve(address(gauge), type(uint256).max);
+        _ensureApprove(address(aero), address(aeroEmissionReceiver), type(uint256).max);
+        _ensureApprove(_underlyingAsset, address(gauge), type(uint256).max);
     }
 
     function mint(
@@ -99,8 +101,14 @@ contract ATokenAerodromeLP is AToken {
 
     /// @dev Used to set the emissions manager
     function setEmissionsManager(address newManager) public onlyPoolAdmin {
-        aero.approve(address(aeroEmissionReceiver), 0);
+        _ensureApprove(address(aero), address(aeroEmissionReceiver), 0);
         aeroEmissionReceiver = newManager;
-        aero.approve(address(aeroEmissionReceiver), type(uint256).max);
+        _ensureApprove(address(aero), address(aeroEmissionReceiver), type(uint256).max);
+    }
+
+    function _ensureApprove(address _token, address _to, uint _amt) internal {
+        if (IERC20(_token).allowance(address(this), _to) < _amt) {
+            IERC20(_token).forceApprove(_to, type(uint).max);
+        }
     }
 }

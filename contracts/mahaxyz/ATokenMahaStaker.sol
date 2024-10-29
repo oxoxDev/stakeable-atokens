@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
-import {AToken, GPv2SafeERC20, IAaveIncentivesController, IERC20, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {AToken, IAaveIncentivesController, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
 import {IMahaStakingRewards} from "../interfaces/IMahaStakingRewards.sol";
 
 contract ATokenMahaStaker is AToken {
-    using GPv2SafeERC20 for IERC20;
+    using SafeERC20 for IERC20;
 
     address public emissionReceiver;
 
@@ -47,8 +49,8 @@ contract ATokenMahaStaker is AToken {
         address token2 = IMahaStakingRewards(_underlyingAsset).rewardToken2();
 
         // give approvals
-        IERC20(token1).approve(address(emissionReceiver), type(uint256).max);
-        IERC20(token2).approve(address(emissionReceiver), type(uint256).max);
+        _ensureApprove(token1, type(uint256).max);
+        _ensureApprove(token2, type(uint256).max);
     }
 
     function mint(
@@ -83,12 +85,18 @@ contract ATokenMahaStaker is AToken {
         address token1 = IMahaStakingRewards(_underlyingAsset).rewardToken1();
         address token2 = IMahaStakingRewards(_underlyingAsset).rewardToken2();
 
-        IERC20(token1).approve(address(emissionReceiver), 0);
-        IERC20(token2).approve(address(emissionReceiver), 0);
+        _ensureApprove(token1, 0);
+        _ensureApprove(token2, 0);
 
         emissionReceiver = newManager;
 
-        IERC20(token1).approve(address(newManager), type(uint256).max);
-        IERC20(token2).approve(address(newManager), type(uint256).max);
+        _ensureApprove(token1, type(uint256).max);
+        _ensureApprove(token2,type(uint256).max);
+    }
+
+    function _ensureApprove(address _token, uint _amt) internal {
+        if (IERC20(_token).allowance(address(this), address(emissionReceiver)) < _amt) {
+            IERC20(_token).forceApprove(address(emissionReceiver), type(uint).max);
+        }
     }
 }
