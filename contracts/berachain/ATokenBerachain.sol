@@ -1,91 +1,64 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
-import {AToken, GPv2SafeERC20, Errors, WadRayMath, IAaveIncentivesController, IERC20, IPool} from "@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol";
+import {
+  AToken,
+  Errors,
+  GPv2SafeERC20,
+  IAaveIncentivesController,
+  IERC20,
+  IPool,
+  WadRayMath
+} from '@zerolendxyz/core-v3/contracts/protocol/tokenization/AToken.sol';
 
-
-import {IBerachainRewardsVault} from "../interfaces/IBerachainRewardsVault.sol";
-
+import {IBerachainRewardsVault} from '../interfaces/IBerachainRewardsVault.sol';
 
 contract ATokenBerachain is AToken {
-    using GPv2SafeERC20 for IERC20;
-    using WadRayMath for uint256;
+  using GPv2SafeERC20 for IERC20;
+  using WadRayMath for uint256;
 
-    IBerachainRewardsVault public rewardsVault;
+  IBerachainRewardsVault public rewardsVault;
 
-    constructor(IPool pool) AToken(pool) {
-        // Intentionally left blank
-    }
+  constructor(IPool pool) AToken(pool) {
+    // Intentionally left blank
+  }
 
-    function getRevision() internal pure virtual override returns (uint256) {
-        return 5;
-    }
+  function getRevision() internal pure virtual override returns (uint256) {
+    return 5;
+  }
 
-    function initialize(
-        IPool initializingPool,
-        address treasury,
-        address underlyingAsset,
-        IAaveIncentivesController incentivesController,
-        uint8 aTokenDecimals,
-        string calldata aTokenName,
-        string calldata aTokenSymbol,
-        bytes calldata params
-    ) public virtual override initializer {
-        super.initialize(
-            initializingPool,
-            treasury,
-            underlyingAsset,
-            incentivesController,
-            aTokenDecimals,
-            aTokenName,
-            aTokenSymbol,
-            params
-        );
+  function initialize(
+    IPool initializingPool,
+    address treasury,
+    address underlyingAsset,
+    IAaveIncentivesController incentivesController,
+    uint8 aTokenDecimals,
+    string calldata aTokenName,
+    string calldata aTokenSymbol,
+    bytes calldata params
+  ) public virtual override initializer {
+    super.initialize(initializingPool, treasury, underlyingAsset, incentivesController, aTokenDecimals, aTokenName, aTokenSymbol, params);
 
-        // decode params
-        (address _rewardsVault) = abi.decode(
-            params,
-            (address)
-        );
+    // decode params
+    (address _rewardsVault) = abi.decode(params, (address));
 
-        // set variables
-        rewardsVault = IBerachainRewardsVault(_rewardsVault);
-    }
+    // set variables
+    rewardsVault = IBerachainRewardsVault(_rewardsVault);
+  }
 
-    function mint(
-        address caller,
-        address onBehalfOf,
-        uint256 amount,
-        uint256 index
-    ) external virtual override onlyPool returns (bool ret) {
-        uint256 amountScaled = amount.rayDiv(index);
-        require(amountScaled != 0, Errors.INVALID_MINT_AMOUNT);
+  function _transfer(address sender, address recipient, uint128 amount) internal virtual override {
+    rewardsVault.notifyATokenBalances(sender, _userState[sender].balance, _userState[sender].balance - amount);
+    rewardsVault.notifyATokenBalances(recipient, _userState[recipient].balance, _userState[recipient].balance + amount);
+    super._transfer(sender, recipient, amount);
+  }
 
-        _notifyRewardsVault(onBehalfOf, amountScaled, IBerachainRewardsVault.Operation.MINT);
+  function _mint(address account, uint128 amount) internal virtual override {
+    rewardsVault.notifyATokenBalances(account, _userState[account].balance, _userState[account].balance + amount);
+    super._mint(account, amount);
+  }
 
-        ret = _mintScaled(caller, onBehalfOf, amount, index);
-    }
-
-    function burn(
-        address from,
-        address receiverOfUnderlying,
-        uint256 amount,
-        uint256 index
-    ) external virtual override onlyPool {
-        uint256 amountScaled = amount.rayDiv(index);
-        require(amountScaled != 0, Errors.INVALID_BURN_AMOUNT);
-
-        _notifyRewardsVault(from, amountScaled, IBerachainRewardsVault.Operation.BURN);
-
-        _burnScaled(from, receiverOfUnderlying, amount, index);
-        if (receiverOfUnderlying != address(this)) {
-            IERC20(_underlyingAsset).safeTransfer(receiverOfUnderlying, amount);
-        }
-    }
-
-    /// @notice Notifies the Berachain Rewards Vault of the ATokens balance change
-    function _notifyRewardsVault(address _user, uint256 _amount, IBerachainRewardsVault.Operation op) internal {
-        rewardsVault.notifyATokenBalances(_user, _amount, op);
-    }
-
+  function _burn(address account, uint128 amount) internal virtual override {
+    rewardsVault.notifyATokenBalances(account, _userState[account].balance, _userState[account].balance - amount);
+    super._burn(account, amount);
+  }
 }

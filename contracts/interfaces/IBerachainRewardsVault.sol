@@ -2,11 +2,6 @@
 pragma solidity ^0.8.0;
 
 interface IBerachainRewardsVault {
-    enum Operation {
-        MINT,
-        BURN
-    }
-
-    /// @notice Notifies the Berachain Rewards Vault of the ATokens balance change
-    function notifyATokenBalances(address user, uint256 amount, Operation op) external;
+  /// @notice Notifies the Berachain Rewards Vault of the ATokens balance change
+  function notifyATokenBalances(address account, uint256 amountBefore, uint256 amountAfter) external;
 }
