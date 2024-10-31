@@ -12,4 +12,9 @@ interface ICornStakingVault {
         uint256 shares
     ) external returns (uint256 assets);
 
+    function sharesOf(
+        address user,
+        address token
+    ) external view returns (uint256 shares);
+
 }
