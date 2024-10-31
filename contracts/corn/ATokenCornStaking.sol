@@ -61,13 +61,21 @@ contract ATokenCornStaking is AToken {
     }
 
     function burn(
-    address from,
-    address receiverOfUnderlying,
-    uint256 amount,
-    uint256 index
-  ) external virtual override onlyPool {
+        address from,
+        address receiverOfUnderlying,
+        uint256 amount,
+        uint256 index
+    ) external virtual override onlyPool {
         _burnScaled(from, receiverOfUnderlying, amount, index);
         cornVault.redeemToken(this.UNDERLYING_ASSET_ADDRESS(), amount);
+    }
+
+    function transferUnderlyingTo(
+        address target,
+        uint256 amount
+    ) external virtual override onlyPool {
+        cornVault.redeemToken(this.UNDERLYING_ASSET_ADDRESS(), amount);
+        IERC20(this.UNDERLYING_ASSET_ADDRESS()).safeTransfer(target, amount);
     }
 
     /**
