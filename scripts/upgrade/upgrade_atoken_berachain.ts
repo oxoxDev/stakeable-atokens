@@ -1,33 +1,53 @@
 import hre from "hardhat";
 import { IPoolConfigurator } from "../../typechain-types";
+import path from "path";
+import fs from "fs/promises";
+
 async function main() {
-    const rewardVault = "0x3A16ADDa53d51B783FeC19E8A7019fBc6Ef77055";
+  if (hre.network.name === "berachain_bartio") {
+    const AToken = await hre.ethers.getContractAt("AToken", "0xEc93009f7cDc8b15A48cAB34680a0b60e49D3FC5")
+    const rewardVault = "0x0c853787bd9a9AE2A2478BC7Cbf70F35Ca5280f6";
 
-    const asset = "0xb0811a1FC9Fb9972ee683Ba04c32Cb828Bcf587B"; // WETH
-    const treasury = "0xC3B6dDc1c9876a922754f1d01D18893C7956A74D";
-    const incentivesController = "0x7E0156852ce91FAA50C6286b1585c449430f542d";
-    const name = "Berachain WETH";
-    const symbol = "BERAWETH";
-
+    const asset = await AToken.UNDERLYING_ASSET_ADDRESS();
+    const treasury = await AToken.RESERVE_TREASURY_ADDRESS();
+    const incentivesController = await AToken.getIncentivesController();
+    const name = await AToken.name();
+    const symbol = await AToken.symbol();
     const encodedRewardVaultAddress = hre.ethers.AbiCoder.defaultAbiCoder().encode(["address"], [rewardVault]);
-    const owner = await hre.ethers.getImpersonatedSigner("0x6F5Ae60d89dbbc4EeD4B08d08A68dD5679Ac61B4")
-    const ZEROLEND_LENDING_POOL = "0xf98b241C1b60f695D5e88268797cC0cEd4D9DD68";
-    const PoolConfigurator: IPoolConfigurator = await hre.ethers.getContractAt("IPoolConfigurator", "0x752Bef11C0e74eee1Bc5B16e2155f9558A183690");
+    const PoolConfigurator: IPoolConfigurator = await hre.ethers.getContractAt("IPoolConfigurator", "0x8aaF2E3080b64129D09cf5847065A20FD14F5a7D");
+    const [deployer] = await hre.ethers.getSigners();
 
-    const newATokenFactory = await hre.ethers.getContractFactory("ATokenBerachain");
-    const newAToken = await newATokenFactory.deploy(ZEROLEND_LENDING_POOL);
-    await newAToken.waitForDeployment();
+    const newATokenImpl = getAddressFromJson("berachain_bartio", "ATokenBerachain");
 
-    await PoolConfigurator.connect(owner).updateAToken({
+    await PoolConfigurator.connect(deployer).updateAToken({
         asset: asset,
         treasury: treasury,
         incentivesController: incentivesController,
         name: name,
         symbol: symbol,
-        implementation: newAToken.target,
+        implementation: newATokenImpl,
         params: encodedRewardVaultAddress,
     });
+
+    console.log("AToken updated: ", name);
+  }
 }
+
+const getAddressFromJson = async (network: string, id: string) => {
+  const artifactPath = path.join(
+    __dirname,
+    "../../deployments",
+    network,
+    `${id}.json`
+  );
+  const artifact = await fs.readFile(artifactPath, "utf8");
+  const artifactJson = JSON.parse(artifact);
+
+  if (artifactJson.address) {
+    return artifactJson.address;
+  }
+  throw `Missing artifact at ${artifactPath}`;
+};
 
 
 main().catch((error) => {
