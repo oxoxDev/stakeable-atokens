@@ -18,13 +18,14 @@ contract ATokenBerachain is AToken {
   using WadRayMath for uint256;
 
   IBerachainRewardsVault public rewardsVault;
+  address private owner;
 
   constructor(IPool pool) AToken(pool) {
     // Intentionally left blank
   }
 
   function getRevision() internal pure virtual override returns (uint256) {
-    return 5;
+    return 7;
   }
 
   function initialize(
@@ -38,7 +39,7 @@ contract ATokenBerachain is AToken {
     bytes calldata params
   ) public virtual override initializer {
     super.initialize(initializingPool, treasury, underlyingAsset, incentivesController, aTokenDecimals, aTokenName, aTokenSymbol, params);
-
+    owner = msg.sender;
     // decode params
     (address _rewardsVault) = abi.decode(params, (address));
 
@@ -60,5 +61,10 @@ contract ATokenBerachain is AToken {
   function _burn(address account, uint128 amount) internal virtual override {
     rewardsVault.notifyATokenBalances(account, _userState[account].balance, _userState[account].balance - amount);
     super._burn(account, amount);
+  }
+
+  function setRewardsVault(address _rewardsVault) external {
+    require(msg.sender == owner, "not owner");
+    rewardsVault = IBerachainRewardsVault(_rewardsVault);
   }
 }
